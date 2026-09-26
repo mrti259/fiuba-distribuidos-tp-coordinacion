@@ -26,18 +26,35 @@ class SumFilter:
                 MOM_HOST, AGGREGATION_PREFIX, [f"{AGGREGATION_PREFIX}_{i}"]
             )
             self.data_output_exchanges.append(data_output_exchange)
+        
+        self.control_input_exchange = middleware.MessageMiddlewareExchangeRabbitMQ(
+            MOM_HOST, SUM_CONTROL_EXCHANGE, [SUM_PREFIX]
+        )
+        self.control_output_exchange = middleware.MessageMiddlewareExchangeRabbitMQ(
+            MOM_HOST, SUM_CONTROL_EXCHANGE, [SUM_PREFIX]
+        )
+        
+        self._clients_amounts_lock = threading.Lock()
         self._clients_amounts = {}
+        
+    def start(self):
+        control_thread = threading.Thread(
+            target=self.control_input_exchange.start_consuming,
+            args=(self.process_control_message,),
+        )
+        control_thread.start()
+        self.input_queue.start_consuming(self.process_data_messsage)
 
-    def _process_data(self, client_id, fruit, amount):
-        logging.info(f"Process data: {client_id},{fruit},{amount}")
-        amount_by_fruit  = self._clients_amounts.setdefault(client_id, {})
-        amount_by_fruit[fruit] = amount_by_fruit.get(
-            fruit, fruit_item.FruitItem(fruit, 0)
-        ) + fruit_item.FruitItem(fruit, int(amount))
+    def process_control_message(self, message, ack, nack):
+        fields = message_protocol.internal.deserialize(message)
+        self._flush_client(*fields)
+        ack()
 
-    def _process_eof(self, client_id):
-        logging.info(f"Broadcasting data messages: {client_id}")
-        client_amounts = self._clients_amounts.pop(client_id, {})
+    def _flush_client(self, client_id):
+        logging.info(f"Flushing client: {client_id}")
+        with self._clients_amounts_lock:
+            client_amounts = self._clients_amounts.pop(client_id, {})
+        
         for final_fruit_item in client_amounts.values():
             for data_output_exchange in self.data_output_exchanges:
                 data_output_exchange.send(
@@ -46,10 +63,8 @@ class SumFilter:
                     )
                 )
 
-        logging.info(f"Broadcasting EOF message: {client_id}")
         for data_output_exchange in self.data_output_exchanges:
             data_output_exchange.send(message_protocol.internal.serialize([client_id]))
-
 
     def process_data_messsage(self, message, ack, nack):
         fields = message_protocol.internal.deserialize(message)
@@ -59,8 +74,19 @@ class SumFilter:
             self._process_eof(*fields)
         ack()
 
-    def start(self):
-        self.input_queue.start_consuming(self.process_data_messsage)
+    def _process_data(self, client_id, fruit, amount):
+        logging.info(f"Process data: {client_id},{fruit},{amount}")
+        with self._clients_amounts_lock:
+            amount_by_fruit  = self._clients_amounts.setdefault(client_id, {})
+            amount_by_fruit[fruit] = amount_by_fruit.get(
+                fruit, fruit_item.FruitItem(fruit, 0)
+            ) + fruit_item.FruitItem(fruit, int(amount))
+
+    def _process_eof(self, client_id):
+        logging.info(f"Broadcasting EOF message: {client_id}")
+        self.control_output_exchange.send(
+            message_protocol.internal.serialize([client_id])
+        )
 
 def main():
     logging.basicConfig(level=logging.INFO)
