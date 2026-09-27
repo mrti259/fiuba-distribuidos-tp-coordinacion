@@ -54,17 +54,18 @@ class SumFilter:
         logging.info(f"Flushing client: {client_id}")
         with self._clients_amounts_lock:
             client_amounts = self._clients_amounts.pop(client_id, {})
+            
+        target = client_id % AGGREGATION_AMOUNT
+        data_output_exchange = self.data_output_exchanges[target]
         
         for final_fruit_item in client_amounts.values():
-            for data_output_exchange in self.data_output_exchanges:
-                data_output_exchange.send(
-                    message_protocol.internal.serialize(
-                        [client_id, final_fruit_item.fruit, final_fruit_item.amount]
-                    )
+            data_output_exchange.send(
+                message_protocol.internal.serialize(
+                    [client_id, final_fruit_item.fruit, final_fruit_item.amount]
                 )
+            )
 
-        for data_output_exchange in self.data_output_exchanges:
-            data_output_exchange.send(message_protocol.internal.serialize([client_id]))
+        data_output_exchange.send(message_protocol.internal.serialize([client_id]))
 
     def process_data_messsage(self, message, ack, nack):
         fields = message_protocol.internal.deserialize(message)
