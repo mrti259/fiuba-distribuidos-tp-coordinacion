@@ -39,7 +39,7 @@ class AggregationFilter:
 
     def _process_eof(self, client_id):
         logging.info(f"Received EOF: {client_id}")
-        eof_count = self._clients_eof_count.get(client_id, 0) + 1
+        eof_count = self._clients_eof_count.pop(client_id, 0) + 1
         if eof_count < SUM_AMOUNT:
             self._clients_eof_count[client_id] = eof_count
             return
