@@ -1,13 +1,12 @@
+import uuid
+
 from common import message_protocol
 
-last_client_id = 0
 
 class MessageHandler:
 
     def __init__(self):
-        global last_client_id
-        self._client_id = last_client_id + 1
-        last_client_id = self._client_id
+        self._client_id = uuid.uuid4().int
     
     def serialize_data_message(self, message):
         [fruit, amount] = message
