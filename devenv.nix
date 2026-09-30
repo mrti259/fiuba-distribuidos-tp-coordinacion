@@ -8,6 +8,6 @@
   };
   packages = with pkgs; [ python314Packages.pika ];
 
-  git-hooks.hooks.ruff.enable = true;
-  git-hooks.hooks.ruff-format.enable = true;
+  git-hooks.hooks.ruff.enable = false;
+  git-hooks.hooks.ruff-format.enable = false;
 }

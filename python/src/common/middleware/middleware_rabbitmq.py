@@ -1,4 +1,6 @@
 # ruff: noqa: BLE001
+import threading
+
 import pika
 
 from .middleware import (
@@ -13,6 +15,7 @@ from .middleware import (
 class _RabbitMQBase:
     def __init__(self, host):
         self._consuming = False
+        self._consumer_thread_id = None
         self._channel = None
         self._connection = None
         try:
@@ -125,6 +128,7 @@ class _RabbitMQBase:
             return
 
         self._consuming = True
+        self._consumer_thread_id = threading.get_ident()
         try:
 
             def callback(channel, method, _properties, body):
@@ -148,6 +152,7 @@ class _RabbitMQBase:
             self._handle_exception(e)
         finally:
             self._consuming = False
+            self._consumer_thread_id = None
 
     # Si se estaba consumiendo desde la cola/exchange, se detiene la escucha. Si
     # no se estaba consumiendo de la cola/exchange, no tiene efecto, ni levanta
@@ -156,7 +161,12 @@ class _RabbitMQBase:
         self._assert_connection()
         try:
             if self._consuming:
-                self._channel.stop_consuming()
+                if threading.get_ident() == self._consumer_thread_id:
+                    self._channel.stop_consuming()
+                else:
+                    self._connection.add_callback_threadsafe(
+                        self._channel.stop_consuming
+                    )
                 self._consuming = False
         except Exception as e:
             self._handle_exception(e)
