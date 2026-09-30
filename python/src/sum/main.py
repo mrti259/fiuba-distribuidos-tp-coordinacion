@@ -2,6 +2,7 @@ import os
 import logging
 import threading
 import signal
+import zlib
 
 from common import middleware, message_protocol, fruit_item
 
@@ -15,6 +16,10 @@ AGGREGATION_AMOUNT = int(os.environ["AGGREGATION_AMOUNT"])
 AGGREGATION_PREFIX = os.environ["AGGREGATION_PREFIX"]
 
 MESSAGE_FIELDS = 3
+
+
+def aggregation_target(fruit: str) -> int:
+    return zlib.crc32(fruit.encode("utf-8")) % AGGREGATION_AMOUNT
 
 
 class SumFilter:
@@ -118,17 +123,19 @@ class SumFilter:
         with self._clients_amounts_lock:
             client_amounts = self._clients_amounts.pop(client_id, {})
 
-        target = client_id % AGGREGATION_AMOUNT
-        data_output_exchange = self.data_output_exchanges[target]
-
         for final_fruit_item in client_amounts.values():
+            target = aggregation_target(final_fruit_item.fruit)
+            data_output_exchange = self.data_output_exchanges[target]
             data_output_exchange.send(
                 message_protocol.internal.serialize(
                     [client_id, final_fruit_item.fruit, final_fruit_item.amount]
                 )
             )
 
-        data_output_exchange.send(message_protocol.internal.serialize([client_id]))
+        for data_output_exchange in self.data_output_exchanges:
+            data_output_exchange.send(
+                message_protocol.internal.serialize([client_id])
+            )
 
     def start(self):
         try:

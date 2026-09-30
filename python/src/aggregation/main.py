@@ -1,6 +1,5 @@
 import os
 import logging
-import bisect
 import signal
 
 from common import middleware, message_protocol, fruit_item
@@ -19,7 +18,7 @@ MESSAGE_FIELDS = 3
 
 class AggregationFilter:
     def __init__(self):
-        self._clients_fruit_top = {}
+        self._clients_fruit_amounts = {}
         self._clients_eof_count = {}
         try:
             self.input_exchange = middleware.MessageMiddlewareExchangeRabbitMQ(
@@ -47,13 +46,10 @@ class AggregationFilter:
 
     def _process_data(self, client_id, fruit, amount):
         logging.info(f"Processing data message: {client_id},{fruit},{amount}")
-        fruit_top = self._clients_fruit_top.setdefault(client_id, [])
-        top = fruit_item.FruitItem(fruit, amount)
-        for i in range(len(fruit_top)):
-            if fruit_top[i].fruit == fruit:
-                top += fruit_top.pop(i)
-                break
-        bisect.insort(fruit_top, top)
+        amounts = self._clients_fruit_amounts.setdefault(client_id, {})
+        amounts[fruit] = amounts.get(fruit, fruit_item.FruitItem(fruit, 0)) + (
+            fruit_item.FruitItem(fruit, amount)
+        )
 
     def _process_eof(self, client_id):
         logging.info(f"Received EOF: {client_id}")
@@ -63,22 +59,16 @@ class AggregationFilter:
         if self._clients_eof_count[client_id] < SUM_AMOUNT:
             return
 
-        fruit_top = self._clients_fruit_top.get(client_id, [])
-        fruit_chunk = list(fruit_top[-TOP_SIZE:])
-        fruit_chunk.reverse()
-        fruit_top = list(
-            map(
-                lambda fruit_item: (fruit_item.fruit, fruit_item.amount),
-                fruit_chunk,
-            )
-        )
+        amounts = self._clients_fruit_amounts.get(client_id, {})
+        fruit_top = sorted(amounts.values(), reverse=True)[:TOP_SIZE]
+        fruit_top = [(item.fruit, item.amount) for item in fruit_top]
 
         self.output_queue.send(
             message_protocol.internal.serialize([client_id, fruit_top])
         )
 
         self._clients_eof_count.pop(client_id)
-        self._clients_fruit_top.pop(client_id)
+        self._clients_fruit_amounts.pop(client_id)
 
     def process_messsage(self, message, ack, nack):
         try:

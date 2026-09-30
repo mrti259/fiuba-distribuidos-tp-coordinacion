@@ -16,6 +16,8 @@ TOP_SIZE = int(os.environ["TOP_SIZE"])
 
 class JoinFilter:
     def __init__(self):
+        self._clients_fruit_amounts = {}
+        self._clients_aggregation_count = {}
         try:
             self.input_queue = middleware.MessageMiddlewareQueueRabbitMQ(
                 MOM_HOST, INPUT_QUEUE
@@ -43,8 +45,28 @@ class JoinFilter:
     def process_messsage(self, message, ack, nack):
         try:
             logging.info("Received top")
-            fields = message_protocol.internal.deserialize(message)
-            self.output_queue.send(message_protocol.internal.serialize(fields))
+            client_id, fruit_top = message_protocol.internal.deserialize(message)
+            amounts = self._clients_fruit_amounts.setdefault(client_id, {})
+
+            for fruit, amount in fruit_top:
+                amounts[fruit] = amounts.get(
+                    fruit, fruit_item.FruitItem(fruit, 0)
+                ) + fruit_item.FruitItem(fruit, amount)
+
+            count = self._clients_aggregation_count.get(client_id, 0) + 1
+            self._clients_aggregation_count[client_id] = count
+            if count < AGGREGATION_AMOUNT:
+                ack()
+                return
+
+            top = sorted(amounts.values(), reverse=True)[:TOP_SIZE]
+            result = [
+                client_id,
+                [(item.fruit, item.amount) for item in top],
+            ]
+            self.output_queue.send(message_protocol.internal.serialize(result))
+            self._clients_fruit_amounts.pop(client_id)
+            self._clients_aggregation_count.pop(client_id)
             ack()
         except:
             logging.error("Couldn't not process top")
