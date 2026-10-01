@@ -47,7 +47,20 @@ class JoinFilter:
     def process_messsage(self, message, ack, nack):
         try:
             logging.info("Received top")
-            client_id, fruit_top = message_protocol.internal.deserialize(message)
+            fields = message_protocol.internal.deserialize(message)
+        except:
+            logging.error("Discarding malformed top")
+            ack()
+            return
+
+        if len(fields) != 2 or not isinstance(fields[1], list):
+            logging.error("Discarding malformed top")
+            ack()
+            return
+
+        client_id, fruit_top = fields
+
+        try:
             amounts = self._clients_fruit_amounts.setdefault(client_id, {})
 
             for fruit, amount in fruit_top:

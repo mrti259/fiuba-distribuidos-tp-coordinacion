@@ -76,10 +76,22 @@ class AggregationFilter:
         try:
             logging.info("Process message")
             fields = message_protocol.internal.deserialize(message)
-            if len(fields) == MESSAGE_FIELDS:
-                self._process_data(*fields)
-            else:
-                self._process_eof(*fields)
+        except:
+            logging.error("Discarding malformed message")
+            ack()
+            return
+
+        if len(fields) == MESSAGE_FIELDS:
+            action = self._process_data
+        elif len(fields) == 1:
+            action = self._process_eof
+        else:
+            logging.error("Discarding malformed message")
+            ack()
+            return
+
+        try:
+            action(*fields)
             ack()
         except:
             logging.error("Couldn't process message")
