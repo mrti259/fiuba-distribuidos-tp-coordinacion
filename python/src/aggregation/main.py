@@ -20,6 +20,8 @@ class AggregationFilter:
     def __init__(self):
         self._clients_fruit_amounts = {}
         self._clients_eof_count = {}
+        self.input_exchange = None
+        self.output_queue = None
         try:
             self.input_exchange = middleware.MessageMiddlewareExchangeRabbitMQ(
                 MOM_HOST, AGGREGATION_PREFIX, [f"{AGGREGATION_PREFIX}_{ID}"]

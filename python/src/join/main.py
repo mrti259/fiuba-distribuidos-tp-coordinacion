@@ -18,6 +18,8 @@ class JoinFilter:
     def __init__(self):
         self._clients_fruit_amounts = {}
         self._clients_aggregation_count = {}
+        self.input_queue = None
+        self.output_queue = None
         try:
             self.input_queue = middleware.MessageMiddlewareQueueRabbitMQ(
                 MOM_HOST, INPUT_QUEUE

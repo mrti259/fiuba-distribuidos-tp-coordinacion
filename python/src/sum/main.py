@@ -27,11 +27,14 @@ class SumFilter:
         self._clients_amounts_lock = threading.Lock()
         self._clients_amounts = {}
         self._control_thread = None
+        self.input_queue = None
+        self.data_output_exchanges = []
+        self.control_input_exchange = None
+        self.control_output_exchange = None
         try:
             self.input_queue = middleware.MessageMiddlewareQueueRabbitMQ(
                 MOM_HOST, INPUT_QUEUE
             )
-            self.data_output_exchanges = []
             for i in range(AGGREGATION_AMOUNT):
                 data_output_exchange = middleware.MessageMiddlewareExchangeRabbitMQ(
                     MOM_HOST, AGGREGATION_PREFIX, [f"{AGGREGATION_PREFIX}_{i}"]
