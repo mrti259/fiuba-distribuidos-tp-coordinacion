@@ -13,7 +13,9 @@ AGGREGATION_AMOUNT = int(os.environ["AGGREGATION_AMOUNT"])
 AGGREGATION_PREFIX = os.environ["AGGREGATION_PREFIX"]
 TOP_SIZE = int(os.environ["TOP_SIZE"])
 
+# TODO: enviar el tipo en lugar de identificarlo por la cantidad de campos
 MESSAGE_FIELDS = 3
+EOF_FIELDS = 1
 
 
 class AggregationFilter:
@@ -83,7 +85,7 @@ class AggregationFilter:
 
         if len(fields) == MESSAGE_FIELDS:
             action = self._process_data
-        elif len(fields) == 1:
+        elif len(fields) == EOF_FIELDS:
             action = self._process_eof
         else:
             logging.error("Discarding malformed message")

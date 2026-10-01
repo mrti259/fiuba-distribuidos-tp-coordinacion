@@ -13,6 +13,7 @@ AGGREGATION_AMOUNT = int(os.environ["AGGREGATION_AMOUNT"])
 AGGREGATION_PREFIX = os.environ["AGGREGATION_PREFIX"]
 TOP_SIZE = int(os.environ["TOP_SIZE"])
 
+TOP_FIELDS = 2
 
 class JoinFilter:
     def __init__(self):
@@ -53,7 +54,7 @@ class JoinFilter:
             ack()
             return
 
-        if len(fields) != 2 or not isinstance(fields[1], list):
+        if len(fields) != TOP_FIELDS or not isinstance(fields[1], list):
             logging.error("Discarding malformed top")
             ack()
             return

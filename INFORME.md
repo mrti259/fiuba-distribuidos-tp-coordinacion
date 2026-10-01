@@ -6,7 +6,7 @@ El sistema recibe los datos de los clientes a través de un Gateway, que le asig
 
 ## Coordinación
 
-Mediante _Round Robin_, los mensajes se reparten entre las instancias de `Sum`, que acumulan cantidades parciales de fruta de cada cliente. Cuando una instancia de `Sum` detecta que un cliente envió una señal de finalización, notifica a las demás instancias mediante un exchange. Esto permite que todas las instancias envíen sus resultados a las instancias de `Aggregation` y liberen la memoria utilizada para ese cliente.
+Mediante _Round Robin_, los mensajes se reparten entre las instancias de `Sum`, que acumulan cantidades parciales de fruta de cada cliente. Cuando una instancia de `Sum` recibe la señal de finalización del cliente, envía sus resultados parciales a las instancias de `Aggregation`, libera la memoria utilizada para ese cliente, y propaga la finalización a las demás instancias mediante un `flush token` que circula por la misma cola de datos. Como la ficha se encola después de todos los datos del cliente, cada instancia la recibe recién cuando ya procesó su parte, por lo que ninguna pierde datos por la finalización. La ficha acumula el identificador de cada instancia que la procesó y deja de circular cuando las juntó a todas.
 
 Los resultados de `Sum` llegan a una instancia de `Aggregation` mediante un exchange elegido a partir de un hash determinista de la fruta. Esto permite que siempre la misma fruta sea procesada por la misma instancia. Cada `Aggregation` combina los resultados parciales recibidos desde las instancias de `Sum` y calcula un top parcial.
 
@@ -24,4 +24,4 @@ Las instancias de `Sum` acumulan los datos antes de enviarlos, por lo que se red
 
 ### Controles
 
-Es posible aumentar la cantidad de instancias de `Sum` y `Aggregation` modificando la configuración del sistema. La cantidad de mensajes de finalización se adapta a la cantidad de instancias activas, por lo que cada etapa puede saber cuándo recibió todos los resultados necesarios.
+Es posible aumentar la cantidad de instancias de `Sum` y `Aggregation` modificando la configuración del sistema. En `Sum` circula un token de finalización que acumula los ID de cada instancia y deja de circular al completar la cantidad configurada, por lo que cada etapa puede saber cuándo recibió todos los resultados necesarios.
